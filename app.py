@@ -1,8 +1,9 @@
-from flask import Flask , request , jsonify
+from flask import Flask , request , jsonify , make_response
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash , check_password_hash
 import jwt
 import uuid
+from datetime import datetime , timedelta
 
 app = Flask(__name__)
 
@@ -97,7 +98,7 @@ def create_user():
 
 @app.route('/user/<user_id>' , methods=['DELETE'] )
 def delete_user(user_id):
-    user = User.query.filter_by(public_id = user_id )
+    user = User.query.filter_by(public_id = user_id ).first()
 
 
     if user:
@@ -108,6 +109,29 @@ def delete_user(user_id):
     
 
     return jsonify({'message':'user not found!'})
+
+
+@app.route('/login' , methods=['POST'])
+def login():
+
+    auth = request.authorization
+
+    if not auth or not auth.username or not auth.password:
+        return make_response('could not verify' , 401 , {'WWW-Authenticate':'Basic realm="Login required!"'})
+
+    user = User.query.filter_by(name=auth.username).first()
+
+    if not user:
+        return make_response('could not verify' , 401 , {'WWW-Authenticate':'Basic realm="Login required!"'})
+
+
+    if check_password_hash(user.password , auth.password): 
+        token = jwt.encode({'public_id' : user.public_id , 'exp' : datetime.now() + timedelta(minutes=30)} , app.config['SECRET_KEY'])
+        return jsonify({ 'token':token })
+
+
+    return make_response('could not verify' , 401 , {'WWW-Authenticate':'Basic realm="Login required!"'})
+
 
 
 
