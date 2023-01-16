@@ -4,6 +4,7 @@ from werkzeug.security import generate_password_hash , check_password_hash
 import jwt
 import uuid
 from datetime import datetime , timedelta
+from functools import wraps
 
 app = Flask(__name__)
 
@@ -28,8 +29,28 @@ class Todo(db.Model):
     user_id = db.Column(db.Integer)
     
 
+def token_required(f):
+    @wraps(f)
+    def decorated(*args , **kwargs):
+
+        token = request.headers.get('x-access-token')
+        if token:
+            
+            data = jwt.decode(token,app.config['SECRET_KEY'],algorithms=["HS256"])
+            current_user = User.query.filter_by(public_id=data['public_id']).first()
+            if current_user.admin:
+                return f(*args,**kwargs)
+
+        return jsonify({'message' : 'token is invalid'})
+
+    return decorated
+
+
+
+
 
 @app.route('/user' , methods = ['GET'])
+@token_required
 def get_all_user():
 
     users = User.query.all()
@@ -48,6 +69,7 @@ def get_all_user():
 
 
 @app.route('/user/<user_id>' , methods = ['GET'])
+@token_required
 def get_one_user(user_id):
 
 
@@ -67,6 +89,7 @@ def get_one_user(user_id):
 
 
 @app.route('/user/<user_id>' , methods=['PUT'])
+@token_required
 def promote_user(user_id):
     user = User.query.filter_by(public_id = user_id ).first()
 
@@ -79,6 +102,7 @@ def promote_user(user_id):
     return jsonify({'message':'user not found!'})
 
 @app.route('/user' , methods=['POST'])
+@token_required
 def create_user():
 
     data = request.get_json()
@@ -97,6 +121,7 @@ def create_user():
 
 
 @app.route('/user/<user_id>' , methods=['DELETE'] )
+@token_required
 def delete_user(user_id):
     user = User.query.filter_by(public_id = user_id ).first()
 
@@ -112,6 +137,7 @@ def delete_user(user_id):
 
 
 @app.route('/login' , methods=['POST'])
+
 def login():
 
     auth = request.authorization
